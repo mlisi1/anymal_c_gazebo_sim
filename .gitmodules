@@ -1,0 +1,4 @@
+[submodule "anymal_c_simple_description"]
+	path = anymal_c_simple_description
+	url = git@github.com:mlisi1/anymal_c_simple_description.git
+	branch = gazebo-sim
