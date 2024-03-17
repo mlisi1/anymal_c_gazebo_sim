@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>simulation_bringup</name>
+  <version>0.1.0</version>
+  <description>Simulation launch files</description>
+
+  <maintainer email="m.lisi1@studenti.unipi.it">Michele Lisi</maintainer>
+  <author>Michele Lisi</author>
+
+  <license>BSD</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <build_depend>launch_ros</build_depend>
+  
+  <exec_depend>anymal_c_simple_description</exec_depend>
+  <exec_depend>anymal_c_gazebo</exec_depend>
+  <exec_depend>anymal_c_bringup</exec_depend>
+  <exec_depend>anymal_c_config</exec_depend>
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+
+</package>

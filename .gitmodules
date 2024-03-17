@@ -2,3 +2,10 @@
 	path = anymal_c_simple_description
 	url = git@github.com:mlisi1/anymal_c_simple_description.git
 	branch = gazebo-sim
+
+
+[submodule "rf2o_laser_odometry"]
+	path = rf2o_laser_odometry
+	url = git@github.com:mlisi1/rf2o_laser_odometry.git
+	branch = ros2
+

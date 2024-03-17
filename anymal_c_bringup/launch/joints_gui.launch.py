@@ -24,7 +24,7 @@ def generate_launch_description():
     # declare_description_path = DeclareLaunchArgument(name="description_path", default_value=default_model_path, description="Absolute path to robot urdf file")
 
     joints_calibrator_relay_node = Node(
-        package="champ_bringup",
+        package="anymal_c_bringup",
         executable="joint_calibrator_relay.py",
         output="screen",
         parameters=[
