@@ -583,11 +583,11 @@ Visualization Manager:
         imu_link:
           Value: false
         lidar:
-          Value: false
+          Value: true
         lidar_cage:
           Value: false
         odom:
-          Value: false
+          Value: true
         remote:
           Value: false
         top_shell:
@@ -805,7 +805,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: odom
+    Fixed Frame: map
     Frame Rate: 30
   Name: root
   Tools:
@@ -864,7 +864,7 @@ Visualization Manager:
       Name: Current View
       Near Clip Distance: 0.009999999776482582
       Pitch: 0.7853981852531433
-      Target Frame: base_footprint
+      Target Frame: odom
       Value: Orbit (rviz)
       Yaw: 0.7853981852531433
     Saved: ~

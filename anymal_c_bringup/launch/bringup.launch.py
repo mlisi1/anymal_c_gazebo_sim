@@ -267,9 +267,9 @@ def generate_launch_description():
             declare_close_loop_odom,
             description_ld,
             quadruped_controller_node,
-            state_estimator_node,
-            base_to_footprint_ekf,
-            footprint_to_odom_ekf,
+            # state_estimator_node,
+            # base_to_footprint_ekf,
+            # footprint_to_odom_ekf,
             rviz2
         ]
     )

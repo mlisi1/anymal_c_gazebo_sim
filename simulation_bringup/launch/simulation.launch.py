@@ -122,7 +122,5 @@ def generate_launch_description():
             rf2o,
             odom_to_path,
             odom_to_path_est_rf2o,
-            # odom_to_path_est_srf,
-            # srf,
         ]
     )

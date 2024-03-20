@@ -10,26 +10,18 @@ class OdometrySubscriber(Node):
         super().__init__('TrajectoryStreamer')
         self.declare_parameter('odom_topic', '/odom_rf2o')
         self.declare_parameter('path_topic', '/path_rf2o')
-        self.declare_parameter('vectorStamped', False)
 
-        if self.get_parameter('vectorStamped').value:
-            self.subscription = self.create_subscription(
-            Vector3Stamped,
+        self.subscription = self.create_subscription(
+            Odometry,
             self.get_parameter('odom_topic').value,
             self.odometry_callback,
             10)
-        else:
-            self.subscription = self.create_subscription(
-                Odometry,
-                self.get_parameter('odom_topic').value,
-                self.odometry_callback,
-                10)
         self.path_publisher = self.create_publisher(Path, self.get_parameter('path_topic').value, 100)
         self.path = Path()
         self.declare_parameter('frame', 'path')
-        self.declare_parameter('synchronize', True)
+        self.declare_parameter('use_same_header', True)
         self.declare_parameter('filepath', '')
-        # self.filepath = '/home/elechim/test_msg.txt'
+
 
     def write_path_to_file(self):
         if not self.get_parameter('filepath').value == '':
@@ -48,19 +40,9 @@ class OdometrySubscriber(Node):
         now = self.get_clock().now().to_msg()
         pose_stamped = PoseStamped()
 
-        if self.get_parameter('vectorStamped').value:
-
-            pose_stamped.pose.position.x = msg.vector.x
-            pose_stamped.pose.position.y = msg.vector.y
-            pose_stamped.pose.position.z = msg.vector.z
-
-        else:
-            pose_stamped.pose = msg.pose.pose
-            pose_stamped.header = msg.header
-            pose_stamped.header.stamp = now
-
-
-
+        pose_stamped.pose = msg.pose.pose
+        pose_stamped.header = msg.header
+        pose_stamped.header.stamp = now
 
         # Accumulate the pose information
         if len(self.path.poses) == 0:
@@ -68,12 +50,10 @@ class OdometrySubscriber(Node):
         else:
             self.path.poses.append(pose_stamped)
 
-        # Optionally, you can perform further processing or visualization here
-
 
         # Publish the updated path
         self.path.header.frame_id = self.get_parameter('frame').value
-        if self.get_parameter('synchronize').value:
+        if self.get_parameter('use_same_header').value:
             self.path.header.stamp = msg.header.stamp
         else:
             self.path.header.stamp = now

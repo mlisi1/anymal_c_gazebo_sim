@@ -34,7 +34,7 @@ def generate_launch_description():
     gait_config = os.path.join(config_pkg_share, "config/gait/gait.yaml")
     links_config = os.path.join(config_pkg_share, "config/links/links.yaml")
     default_model_path = os.path.join(descr_pkg_share, "urdf/anymal_main.xacro")
-    default_world_path = os.path.join(config_pkg_share, "worlds/outdoor.world")
+    default_world_path = os.path.join(config_pkg_share, "worlds/test_world_2.world")
 
     declare_use_sim_time = DeclareLaunchArgument(
         "use_sim_time",
@@ -65,7 +65,7 @@ def generate_launch_description():
     declare_world_init_x = DeclareLaunchArgument("world_init_x", default_value="0.0")
     declare_world_init_y = DeclareLaunchArgument("world_init_y", default_value="0.0")
     declare_world_init_heading = DeclareLaunchArgument(
-        "world_init_heading", default_value="0.6"
+        "world_init_heading", default_value="0.0"
     )
 
 
@@ -112,7 +112,7 @@ def generate_launch_description():
             "world_init_y": LaunchConfiguration("world_init_y"),
             "world_init_heading": LaunchConfiguration("world_init_heading"),
             "gui": LaunchConfiguration("gui"),
-            "close_loop_odom": "true",
+            "close_loop_odom": "false",
             # "ros_control_file": ros_control_config,
         }.items(),
     )
