@@ -20,8 +20,8 @@ class Plotter(Node):
     def __init__(self):
 
         super().__init__('plotter')
-        self.runs_filepath = os.path.join(get_package_share_directory('simulation_bringup'), 'data', '10Hz')
-        self.gt_filepath = os.path.join(get_package_share_directory('simulation_bringup'), 'data', '10Hz', 'GT.txt')
+        self.runs_filepath = os.path.join(get_package_share_directory('simulation_bringup'), 'data', '5Hz')
+        self.gt_filepath = os.path.join(get_package_share_directory('simulation_bringup'), 'data', '5Hz', 'GT.txt')
 
         
 
@@ -58,32 +58,18 @@ class Plotter(Node):
         self.est_y_plot_data = {}
         self.est_yaw_plot_data = {}
 
-        # self.est_x = np.empty(0)
-        # self.est_y = np.empty(0)
-        # self.est_yaw = np.empty(0)
-        # self.est_timestamps = np.empty(0)        
 
         self.rmse_x_data = {}
         self.rmse_y_data = {}
-        # self.rmse_x = np.empty(0)
-        # self.rmse_y = np.empty(0)
-
+      
         self.yaw_rmse_data = {}
-        # self.yaw_rmse = np.empty(0)
 
-        # self.path_to_map_quat = [0.5, -0.5, 0.5, -0.5]
-
-        # files = os.listdir(self.runs_filepath)
         files = [os.path.join(self.runs_filepath, file) for file in os.listdir(self.runs_filepath)]
         for file in files:
 
             if file.endswith('txt') and not os.path.basename(file) == 'GT.txt':
          
                 self.parse_path_message(file)
-
-
-        self.get_logger().warn(f'{self.est_x_data[list(self.est_x_data.keys())[0]].shape}')
-        self.get_logger().warn(f'{self.gt_x.shape}')
 
         self.calculate_rmse()
         
@@ -100,7 +86,7 @@ class Plotter(Node):
         self.plot_path(0, 0)
         # self.plot_rmse_x()
         # self.plot_rmse_y()
-        # self.plot_yaw_rmse()
+        # self.plot_yaw_rmse(0,2)
         self.plot_hist_x(0,1)
         self.plot_hist_y(1, 0)
         self.plot_hist_yaw(1,1)
@@ -110,8 +96,11 @@ class Plotter(Node):
         self.figure.canvas.mpl_connect('key_press_event', self.toggle_lines)
 
         self.map_legend_to_ax = {}
-        for legend_line, ax_line in zip(self.leg.get_lines()[1:], self.lines_dict.keys()):
+        for legend_line, ax_line in zip(self.leg.get_patches(), self.lines_dict.keys()):
+            
             legend_line.set_picker(6)  # Enable picking on the legend line.
+
+            
             self.map_legend_to_ax[legend_line] = ax_line
         
 
@@ -123,8 +112,50 @@ class Plotter(Node):
 
         self.figure.canvas.mpl_connect('pick_event', self.on_legend_click)
         
-        plt.subplots_adjust(0.034, 0.055, 0.977, 0.951, 0.092, 0.13)
+        plt.subplots_adjust(0.034, 0.036, 0.991, 0.951, 0.251, 0.13)
         plt.show()
+
+
+    def sort_keys(self):
+
+        keys = list(self.rmse_y_data.keys())
+
+        distances = np.array([float(os.path.basename(key).strip('.txt').split('-')[0]) for key in keys])
+        
+        indexes_sorted_by_distance = np.argsort(distances)
+
+        sorted_keys = [list(self.rmse_y_data.keys())[i] for i in indexes_sorted_by_distance]
+
+        samples = np.array([float(os.path.basename(key).strip('.txt').split('-')[1]) for key in sorted_keys])
+
+        rep = None
+
+        
+        for i, entry in enumerate(samples):
+
+            if i==0:
+                rep = entry
+            else:
+                if entry == rep:
+                    rep = i
+                    break
+
+        
+
+        names = []
+
+      
+
+        for i in range(0, int(samples.shape[0]/rep)):
+            
+            argsort_samples = np.argsort(samples[rep*(i):rep*(i+1)])
+            tmp = [sorted_keys[rep*(i):rep*(i+1)][j] for j in argsort_samples]
+
+            names.append(tmp)
+        
+        names = np.array(names).flatten()
+
+        return names
 
 
     def on_legend_click(self, event):
@@ -149,7 +180,6 @@ class Plotter(Node):
 
     def toggle_lines(self, label):
 
-        self.get_logger().debug('Toggling Points')
 
         for plot in self.points:
             plot.set_visible(not plot.get_visible())
@@ -162,11 +192,11 @@ class Plotter(Node):
         self.hist_x_ax = self.subfigures[row, col]
 
         
-        names = np.array([float(os.path.basename(key).strip('.txt').split('-')[0]) for key in self.rmse_x_data.keys()])
+        # names = np.array([float(os.path.basename(key).strip('.txt').split('-')[0]) for key in self.rmse_x_data.keys()])
+        # sorted_indexes = np.argsort(names)
+        # sorted_keys = [list(self.rmse_x_data.keys())[i] for i in sorted_indexes]
 
-        sorted_indexes = np.argsort(names)
-
-        sorted_keys = [list(self.rmse_x_data.keys())[i] for i in sorted_indexes]
+        sorted_keys = self.sort_keys()
 
         final_values = []
 
@@ -183,21 +213,22 @@ class Plotter(Node):
         self.hist_x_ax.set_xlabel('Simulations')
         self.hist_x_ax.set_ylabel('RMSE X')
         self.hist_x_ax.grid()
-        self.hist_x_ax.legend().set_draggable(True)
+        # self.hist_x_ax.legend().set_draggable(True)
 
 
     def plot_hist_y(self, row, col):
 
         self.hist_y_ax = self.subfigures[row, col]
 
-        
-        names = np.array([float(os.path.basename(key).strip('.txt').split('-')[0]) for key in self.rmse_y_data.keys()])
+        self.sort_keys()
 
-        sorted_indexes = np.argsort(names)
-
-        sorted_keys = [list(self.rmse_y_data.keys())[i] for i in sorted_indexes]
+        # names = np.array([float(os.path.basename(key).strip('.txt').split('-')[1]) for key in self.rmse_y_data.keys()])
+        # sorted_indexes = np.argsort(names)
+        # sorted_keys = [list(self.rmse_y_data.keys())[i] for i in sorted_indexes]
 
         final_values = []
+
+        sorted_keys = self.sort_keys()
 
         for i, key in enumerate(sorted_keys):
 
@@ -212,18 +243,13 @@ class Plotter(Node):
         self.hist_y_ax.set_xlabel('Simulations')
         self.hist_y_ax.set_ylabel('RMSE Y')
         self.hist_y_ax.grid()
-        self.hist_y_ax.legend().set_draggable(True)
+        # self.hist_y_ax.legend().set_draggable(True)
 
     def plot_hist_yaw(self, row, col):
 
             self.hist_yaw_ax = self.subfigures[row, col]
 
-            
-            names = np.array([float(os.path.basename(key).strip('.txt').split('-')[0]) for key in self.yaw_rmse_data.keys()])
-
-            sorted_indexes = np.argsort(names)
-
-            sorted_keys = [list(self.yaw_rmse_data.keys())[i] for i in sorted_indexes]
+            sorted_keys = self.sort_keys()
 
             final_values = []
 
@@ -240,20 +266,25 @@ class Plotter(Node):
             self.hist_yaw_ax.set_xlabel('Simulations')
             self.hist_yaw_ax.set_ylabel('RMSE Yaw')
             self.hist_yaw_ax.grid()
-            self.hist_yaw_ax.legend().set_draggable(True)
+            self.leg = self.hist_yaw_ax.legend(fancybox=True, shadow=True, loc = 'upper left')
+            self.leg.set_draggable(True)
+
 
     def plot_path(self, row, col):
 
         self.path_ax = self.subfigures[row,col]
-        self.lines.append(self.path_ax.plot(self.gt_x_plot_data, self.gt_y_plot_data, label='GT Path')[0])
+        # self.lines.append(self.path_ax.plot(self.gt_x_plot_data, self.gt_y_plot_data, label='GT Path', color = 'black')[0])
         self.points.append(self.path_ax.scatter(self.gt_x_plot_data, self.gt_y_plot_data, linewidth=0.1))    
 
         #non interpolated
-        # self.lines.append(self.path_ax.plot(self.gt_x, self.gt_y, label='GT Path')[0])   
+        self.lines.append(self.path_ax.plot(self.gt_x, self.gt_y, label='GT Path', color = 'black')[0])   
 
-        for i, key in enumerate(self.est_x_data.keys()):    
+        sorted_keys = self.sort_keys()
+
+        for i, key in enumerate(sorted_keys):    
 
             (line, ) = self.path_ax.plot(self.est_x_plot_data[key], self.est_y_plot_data[key], label=f'{self.get_label(key)}')
+        
 
             #non interpolated
             # (line, ) = self.path_ax.plot(self.est_x_data[key], self.est_y_data[key], label=f'{self.get_label(key)}')
@@ -267,8 +298,8 @@ class Plotter(Node):
         self.path_ax.set_ylabel('Y')
         self.path_ax.set_title('Paths')
         self.path_ax.grid()
-        self.leg = self.path_ax.legend(fancybox=True, shadow=True, loc = 'upper left')
-        self.leg.set_draggable(True)
+        # self.leg = self.path_ax.legend(fancybox=True, shadow=True, loc = 'upper left')
+        # self.leg.set_draggable(True)
 
 
     def plot_rmse_x(self, row, col):
@@ -493,10 +524,6 @@ class Plotter(Node):
 
             key = file.name
 
-            
-
-            self.get_logger().debug(f'{key}')
-
             self.est_timestamps_data[key] = np.empty(0)
             self.est_x_data[key] = np.empty(0)
             self.est_y_data[key] = np.empty(0)
@@ -546,7 +573,6 @@ class Plotter(Node):
                     self.est_yaw_data[key] = np.append(self.est_yaw_data[key], yaw)
                     
 
-            self.get_logger().debug(f'{self.est_x_data.keys()}')
     
                     
 

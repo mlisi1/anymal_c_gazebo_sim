@@ -86,7 +86,7 @@ def generate_launch_description():
                 'frame' : 'odom',
                 'odom_topic' : '/odom/ground_truth',
                 'path_topic' : '/path',
-                # 'filepath' : f'/home/elechim/RF2O_SIM_WS/src/anymal_c_gazebo_sim/simulation_bringup/data/10Hz/GT.txt'
+                # 'filepath' : f'/home/elechim/RF2O_SIM_WS/src/anymal_c_gazebo_sim/simulation_bringup/data/5Hz-RP/GT.txt'
             }]         
     )
 
@@ -101,8 +101,8 @@ def generate_launch_description():
         base_to_lidar_frame,
     ]
 
-    max_ranges = [5, 10, 15, 20]
-    samples = [180, 360]
+    max_ranges = [5, 10, 15, 20, 7, 13, 17]
+    samples = [180, 360, 800, 1600]
 
 
     for range in max_ranges:
@@ -129,7 +129,7 @@ def generate_launch_description():
                         'frame' : 'odom',
                         'odom_topic' : f'/odom_rf2o_{range}_{sample}',
                         'path_topic' : f'/path_rf2o_{range}_{sample}',
-                        # 'filepath' : f'/home/elechim/RF2O_SIM_WS/src/anymal_c_gazebo_sim/simulation_bringup/data/10Hz/{range}-{sample}.txt'
+                        # 'filepath' : f'/home/elechim/RF2O_SIM_WS/src/anymal_c_gazebo_sim/simulation_bringup/data/5Hz-RP/{range}-{sample}.txt'
                     }]         
             )
 
