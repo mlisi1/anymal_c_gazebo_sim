@@ -12,6 +12,9 @@ import transforms3d as tr
 import math
 import csv
 from scipy.interpolate import interp1d
+from pyquaternion import Quaternion
+import matplotlib.colors as mcolors
+
 
 
 
@@ -20,22 +23,43 @@ class Plotter(Node):
     def __init__(self):
 
         super().__init__('plotter')
-        self.runs_filepath = os.path.join(get_package_share_directory('simulation_bringup'), 'data', '5Hz')
-        self.gt_filepath = os.path.join(get_package_share_directory('simulation_bringup'), 'data', '5Hz', 'GT.txt')
+
+        self.declare_parameter('folder_name', '5Hz-RP')
+        self.declare_parameter('truncate', 0)
+
+        folder_name = self.get_parameter('folder_name').value
+        self.runs_filepath = os.path.join(get_package_share_directory('simulation_bringup'), 'data', folder_name)
+        self.gt_filepath = os.path.join(get_package_share_directory('simulation_bringup'), 'data', folder_name, 'GT.txt')
+
+
+        self.declare_parameter('order_by_range', True)
 
         
-
+        #obsolete; to refactor
         self.limit = 5000
+
+
+        if self.get_parameter('truncate').value == 0:
+
+            self.plot_limiter = 3000
+            self.path_limiter = -1
+
+        else:
+
+            self.plot_limiter = self.get_parameter('truncate').value
+            self.path_limiter = self.get_parameter('truncate').value
         
 
         self.gt_x = np.empty(0)
         self.gt_y = np.empty(0)
         self.gt_yaw = np.empty(0)
         self.gt_timestamps = np.empty(0)
+        self.gt_quat = np.empty((0,4))
 
         self.gt_x_func = None
         self.gt_y_func = None
         self.gt_yaw_func = None
+        
 
 
         self.parse_gt_data()
@@ -48,6 +72,7 @@ class Plotter(Node):
         self.est_x_data = {}
         self.est_y_data = {}
         self.est_yaw_data = {}
+        self.est_quat_data = {}
         self.est_timestamps_data = {}
 
         self.gt_x_plot_data = None
@@ -83,6 +108,8 @@ class Plotter(Node):
         self.lines = []
         self.lines_dict = {}
 
+        
+
         self.plot_path(0, 0)
         # self.plot_rmse_x()
         # self.plot_rmse_y()
@@ -91,9 +118,6 @@ class Plotter(Node):
         self.plot_hist_y(1, 0)
         self.plot_hist_yaw(1,1)
         
-
-
-        self.figure.canvas.mpl_connect('key_press_event', self.toggle_lines)
 
         self.map_legend_to_ax = {}
         for legend_line, ax_line in zip(self.leg.get_patches(), self.lines_dict.keys()):
@@ -108,43 +132,39 @@ class Plotter(Node):
         # mng = plt.get_current_fig_manager()
         # mng.resize(*mng.window.maxsize())
 
-        self.toggle_lines(None)
+     
 
         self.figure.canvas.mpl_connect('pick_event', self.on_legend_click)
         
-        plt.subplots_adjust(0.034, 0.036, 0.991, 0.951, 0.251, 0.13)
+        plt.subplots_adjust(0.034, 0.036, 0.991, 0.951, 0.251, 0.23)
         plt.show()
 
 
     def sort_keys(self):
 
+        default_colors = list(mcolors.TABLEAU_COLORS.values())
+
+        range_first = self.get_parameter('order_by_range').value
+
         keys = list(self.rmse_y_data.keys())
 
-        distances = np.array([float(os.path.basename(key).strip('.txt').split('-')[0]) for key in keys])
+        distances = np.array([float(os.path.basename(key).strip('.txt').split('-')[0 if range_first else 1]) for key in keys])
         
         indexes_sorted_by_distance = np.argsort(distances)
 
         sorted_keys = [list(self.rmse_y_data.keys())[i] for i in indexes_sorted_by_distance]
 
-        samples = np.array([float(os.path.basename(key).strip('.txt').split('-')[1]) for key in sorted_keys])
+        samples = np.array([float(os.path.basename(key).strip('.txt').split('-')[1 if range_first else 0]) for key in sorted_keys])
 
-        rep = None
+        rep = np.unique(samples).shape[0]     
 
-        
-        for i, entry in enumerate(samples):
+        colors_to_use = default_colors[:rep]
 
-            if i==0:
-                rep = entry
-            else:
-                if entry == rep:
-                    rep = i
-                    break
-
-        
 
         names = []
+        colors = []
 
-      
+
 
         for i in range(0, int(samples.shape[0]/rep)):
             
@@ -152,10 +172,13 @@ class Plotter(Node):
             tmp = [sorted_keys[rep*(i):rep*(i+1)][j] for j in argsort_samples]
 
             names.append(tmp)
+            colors.append(colors_to_use)
         
         names = np.array(names).flatten()
+        colors = np.array(colors).flatten()
 
-        return names
+        return names, colors
+    
 
 
     def on_legend_click(self, event):
@@ -178,15 +201,6 @@ class Plotter(Node):
         # plt.draw()
       
 
-    def toggle_lines(self, label):
-
-
-        for plot in self.points:
-            plot.set_visible(not plot.get_visible())
-  
-        plt.draw()
-
-
     def plot_hist_x(self, row, col):
 
         self.hist_x_ax = self.subfigures[row, col]
@@ -196,22 +210,24 @@ class Plotter(Node):
         # sorted_indexes = np.argsort(names)
         # sorted_keys = [list(self.rmse_x_data.keys())[i] for i in sorted_indexes]
 
-        sorted_keys = self.sort_keys()
+        sorted_keys, colors = self.sort_keys()
 
         final_values = []
 
         for i, key in enumerate(sorted_keys):
 
-            line = self.hist_x_ax.bar(i, self.rmse_x_data[key][-1], label = f'{self.get_label(key)}', color = self.colors[key])
+            line = self.hist_x_ax.bar(i, self.rmse_x_data[key][-1], label = f'{self.get_label(key)}', color = colors[i])
             final_values.append(self.rmse_x_data[key][-1])
 
             self.lines_dict[key].append(line[0])
 
         self.hist_x_ax.plot(range(0,len(final_values)), final_values, color = 'black')
+        self.hist_x_ax.scatter(np.argmin(final_values), final_values[np.argmin(final_values)], color = 'black', marker = 'o', linewidths = 5)
 
 
         self.hist_x_ax.set_xlabel('Simulations')
         self.hist_x_ax.set_ylabel('RMSE X')
+        self.hist_x_ax.set_title("RMSE X")
         self.hist_x_ax.grid()
         # self.hist_x_ax.legend().set_draggable(True)
 
@@ -228,20 +244,22 @@ class Plotter(Node):
 
         final_values = []
 
-        sorted_keys = self.sort_keys()
+        sorted_keys, colors = self.sort_keys()
 
         for i, key in enumerate(sorted_keys):
 
-            line = self.hist_y_ax.bar(i, self.rmse_y_data[key][-1], label = f'{self.get_label(key)}', color = self.colors[key])
+            line = self.hist_y_ax.bar(i, self.rmse_y_data[key][-1], label = f'{self.get_label(key)}', color = colors[i])
             final_values.append(self.rmse_y_data[key][-1])
 
             self.lines_dict[key].append(line[0])
 
         self.hist_y_ax.plot(range(0,len(final_values)), final_values, color = 'black')
+        self.hist_y_ax.scatter(np.argmin(final_values), final_values[np.argmin(final_values)], color = 'black', marker = 'o', linewidths = 5)
 
 
         self.hist_y_ax.set_xlabel('Simulations')
         self.hist_y_ax.set_ylabel('RMSE Y')
+        self.hist_y_ax.set_title("RMSE Y")
         self.hist_y_ax.grid()
         # self.hist_y_ax.legend().set_draggable(True)
 
@@ -249,22 +267,25 @@ class Plotter(Node):
 
             self.hist_yaw_ax = self.subfigures[row, col]
 
-            sorted_keys = self.sort_keys()
+            sorted_keys, colors = self.sort_keys()
 
             final_values = []
 
             for i, key in enumerate(sorted_keys):
 
-                line = self.hist_yaw_ax.bar(i, self.yaw_rmse_data[key][-1], label = f'{self.get_label(key)}', color = self.colors[key])
+                line = self.hist_yaw_ax.bar(i, self.yaw_rmse_data[key][-1], label = f'{self.get_label(key)}', color = colors[i])
                 final_values.append(self.yaw_rmse_data[key][-1])
 
                 self.lines_dict[key].append(line[0])
 
+
             self.hist_yaw_ax.plot(range(0,len(final_values)), final_values, color = 'black')
+            self.hist_yaw_ax.scatter(np.argmin(final_values), final_values[np.argmin(final_values)], color = 'black', marker = 'o', linewidths = 5)
 
 
             self.hist_yaw_ax.set_xlabel('Simulations')
             self.hist_yaw_ax.set_ylabel('RMSE Yaw')
+            self.hist_yaw_ax.set_title("RMSE Yaw")
             self.hist_yaw_ax.grid()
             self.leg = self.hist_yaw_ax.legend(fancybox=True, shadow=True, loc = 'upper left')
             self.leg.set_draggable(True)
@@ -273,26 +294,27 @@ class Plotter(Node):
     def plot_path(self, row, col):
 
         self.path_ax = self.subfigures[row,col]
-        # self.lines.append(self.path_ax.plot(self.gt_x_plot_data, self.gt_y_plot_data, label='GT Path', color = 'black')[0])
-        self.points.append(self.path_ax.scatter(self.gt_x_plot_data, self.gt_y_plot_data, linewidth=0.1))    
+        
+  
 
         #non interpolated
-        self.lines.append(self.path_ax.plot(self.gt_x, self.gt_y, label='GT Path', color = 'black')[0])   
+        # self.lines.append(self.path_ax.plot(self.gt_x, self.gt_y, label='GT Path', color = 'black')[0])   
 
-        sorted_keys = self.sort_keys()
+        sorted_keys, colors = self.sort_keys()
 
         for i, key in enumerate(sorted_keys):    
 
-            (line, ) = self.path_ax.plot(self.est_x_plot_data[key], self.est_y_plot_data[key], label=f'{self.get_label(key)}')
+            (line, ) = self.path_ax.plot(self.est_x_plot_data[key][:self.path_limiter], self.est_y_plot_data[key][:self.path_limiter], label=f'{self.get_label(key)}', color = colors[i])
         
 
             #non interpolated
             # (line, ) = self.path_ax.plot(self.est_x_data[key], self.est_y_data[key], label=f'{self.get_label(key)}')
             self.lines.append(line)
             self.lines_dict[key] = [line]
-            self.points.append(self.path_ax.scatter(self.est_x_data[key][:self.limit], self.est_y_data[key][:self.limit], linewidth=0.1))
-            # self.get_logger().warn(f'{line}')
             self.colors[key] = line.get_color()
+
+
+        self.lines.append(self.path_ax.plot(self.gt_x_plot_data, self.gt_y_plot_data, label='GT Path', color = 'black', linewidth = 2)[0])
 
         self.path_ax.set_xlabel('X')
         self.path_ax.set_ylabel('Y')
@@ -356,7 +378,28 @@ class Plotter(Node):
         self.yaw_rmse_ax.grid()
         self.yaw_rmse_ax.legend().set_draggable(True)
 
+    def to_float(self, s):
+        # Regular expression pattern for scientific notation
+        # scientific_notation_pattern = r'^(\d+\.\d+)e-(\d+)$'
+        scientific_notation_pattern = r'^(-?\d+\.\d+)e-(\d+)$'
+
         
+
+        # Check if the string matches the scientific notation pattern
+        match = re.match(scientific_notation_pattern, s)
+        if match:
+
+            assert('e' in s)
+            # If it matches, extract mantissa and exponent
+            mantissa = float(match.group(1))
+            exponent = int(match.group(2))
+
+            # Calculate the value using mantissa and exponent
+            return mantissa * 10**(-exponent)
+        else:
+            # If it doesn't match, just convert the string to float directly
+            assert(not 'e' in s)
+            return float(s)
 
     def parse_gt_data(self):
 
@@ -397,10 +440,30 @@ class Plotter(Node):
                 frame_id = re.search(r"frame_id='([^']*)'", tags[1]).group(1)
                 point = tags[2].strip(' pose=geometry_msgs.msg.Pose(position=geometry_msgs.msg.Point(')
                 quaternion = tags[3].strip(' orientation=geometry_msgs.msg.Quaternion(').strip(')))\n')
-                point_x = float(re.search(r"x=([-+]?\d*\.\d+)", point).group(1))
-                point_y = float(re.search(r"y=([-+]?\d*\.\d+)", point).group(1))
+                # point_x = float(re.search(r"x=([-+]?\d*\.\d+)", point).group(1))
+                # point_y = float(re.search(r"y=([-+]?\d*\.\d+)", point).group(1))
+
+                point_x_string = re.search(r'x=([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)', point).group(1)
+                point_y_string = re.search(r'y=([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)', point).group(1)
+
+                point_x = self.to_float(point_x_string)
+                point_y = self.to_float(point_y_string)
+
+                
+                orientation_x = float(re.search(r"x=([-+]?\d*\.\d+)", quaternion).group(1))
+                orientation_y = float(re.search(r"y=([-+]?\d*\.\d+)", quaternion).group(1))
                 orientation_z = float(re.search(r"z=([-+]?\d*\.\d+)", quaternion).group(1))
                 orientation_w = float(re.search(r"w=([-+]?\d*\.\d+)", quaternion).group(1))
+
+                orientation_x_string = re.search(r'x=([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)', quaternion).group(1)
+                orientation_y_string = re.search(r'y=([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)', quaternion).group(1)
+                orientation_z_string = re.search(r'z=([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)', quaternion).group(1)
+                orientation_w_string = re.search(r'w=([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)', quaternion).group(1)
+                orientation_x = self.to_float(orientation_x_string)
+                orientation_y = self.to_float(orientation_y_string)
+                orientation_z = self.to_float(orientation_z_string)
+                orientation_w = self.to_float(orientation_w_string)
+
 
                 time = sec + (1000 * nanosec)
                 self.gt_timestamps = np.append(self.gt_timestamps, time)
@@ -408,7 +471,20 @@ class Plotter(Node):
                 self.gt_x = np.append(self.gt_x, point_x)
                 self.gt_y = np.append(self.gt_y, point_y)
 
-                yaw = tr.euler.quat2euler([0.0, 0.0, orientation_z, orientation_w], axes='szyx')[2]
+                
+
+
+                quat = Quaternion([orientation_w, orientation_x, orientation_y, orientation_z])
+
+                # quat = quat + tr.euler.euler2quat(0,0,180)
+  
+
+                yaw = tr.euler.quat2euler(quat, axes='sxyz')[2]
+
+
+                self.gt_quat = np.append(self.gt_quat, quat)
+
+                
 
                 self.gt_yaw = np.append(self.gt_yaw, yaw)
                     
@@ -433,7 +509,7 @@ class Plotter(Node):
             self.yaw_rmse_non_interp[key] = np.empty(0)
 
             
-            t = np.linspace(0, 1, len(self.est_x_data[key]))  # Normalized x values for array1        
+            t = np.linspace(0, 1, len(self.est_x_data[key]))  # Normalized x values for array1      
          
             est_x_func = interp1d(t, self.est_x_data[key], kind='linear')
             est_y_func = interp1d(t, self.est_y_data[key], kind='linear')
@@ -459,14 +535,23 @@ class Plotter(Node):
             self.est_yaw_plot_data[key] = est_yaw
 
 
+
             for i in range(1, est_x.shape[0]):
 
         #         # print(self.gt_x[:i].shape)
         #         # print(self.est_x_data[key][:1].shape)
 
+                # err = self.gt_quat[:i]-self.est_quat_data[key][:i]
+
+                # err = np.array([tr.euler.quat2euler(quat, axes='sxyz')[2] for quat in err])
+                # print(self.est_quat_data[key][i].degrees)  
+
+
                 mse_x = np.mean((gt_x[:i] - est_x[:i])**2)
                 mse_y = np.mean((gt_y[:i] - est_y[:i])**2)
                 yaw_mse = np.mean((gt_yaw[:i] - est_yaw[:i])**2)
+                
+                # yaw_mse = np.mean(err**2)
 
                 mse_x_non_interp = np.mean((self.gt_x[:i] - self.est_x_data[key][:i])**2)
                 mse_y_non_interp = np.mean((self.gt_y[:i] - self.est_y_data[key][:i])**2)
@@ -476,7 +561,7 @@ class Plotter(Node):
 
                 rmse_x = np.sqrt(mse_x)
                 rmse_y = np.sqrt(mse_y)
-                yaw_rmse = np.sqrt(yaw_mse)
+                yaw_rmse = np.sqrt(yaw_mse) * 180/np.pi
 
 
                 rmse_x_non_interp = np.sqrt(mse_x_non_interp)
@@ -489,9 +574,12 @@ class Plotter(Node):
                 self.yaw_rmse_non_interp[key] = np.append(self.yaw_rmse_non_interp[key], yaw_rmse_non_interp)
 
 
-                self.rmse_x_data[key] = np.append(self.rmse_x_data[key], rmse_x)
-                self.rmse_y_data[key] = np.append(self.rmse_y_data[key], rmse_y)
-                self.yaw_rmse_data[key] = np.append(self.yaw_rmse_data[key], yaw_rmse)
+                
+                if i < self.plot_limiter:
+
+                    self.rmse_x_data[key] = np.append(self.rmse_x_data[key], rmse_x)
+                    self.rmse_y_data[key] = np.append(self.rmse_y_data[key], rmse_y)
+                    self.yaw_rmse_data[key] = np.append(self.yaw_rmse_data[key], yaw_rmse)
 
 
 
@@ -528,6 +616,7 @@ class Plotter(Node):
             self.est_x_data[key] = np.empty(0)
             self.est_y_data[key] = np.empty(0)
             self.est_yaw_data[key] = np.empty(0)
+            self.est_quat_data[key] = np.empty(0)
 
             for line in file.readlines():
                 
@@ -539,7 +628,6 @@ class Plotter(Node):
                         header_strings.strip(line)
                         header_lines = False
                         pose_lines = True
-                        # self.get_logger().warn(line)
 
                 if pose_lines:
                     
@@ -557,10 +645,21 @@ class Plotter(Node):
                     frame_id = re.search(r"frame_id='([^']*)'", tags[1]).group(1)
                     point = tags[2].strip(' pose=geometry_msgs.msg.Pose(position=geometry_msgs.msg.Point(')
                     quaternion = tags[3].strip(' orientation=geometry_msgs.msg.Quaternion(').strip(')))\n')
-                    point_x = float(re.search(r"x=([-+]?\d*\.\d+)", point).group(1))
-                    point_y = float(re.search(r"y=([-+]?\d*\.\d+)", point).group(1))
-                    orientation_z = float(re.search(r"z=([-+]?\d*\.\d+)", quaternion).group(1))
-                    orientation_w = float(re.search(r"w=([-+]?\d*\.\d+)", quaternion).group(1))
+                    # point_x = float(re.search(r"x=([-+]?\d*\.\d+)", point).group(1))
+                    # point_y = float(re.search(r"y=([-+]?\d*\.\d+)", point).group(1))
+
+                    point_x_string = re.search(r'x=([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)', point).group(1)
+                    point_y_string = re.search(r'y=([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)', point).group(1)
+                    point_x = self.to_float(point_x_string)
+                    point_y = self.to_float(point_y_string)
+
+                    # orientation_z = float(re.search(r"z=([-+]?\d*\.\d+)", quaternion).group(1))
+                    # orientation_w = float(re.search(r"w=([-+]?\d*\.\d+)", quaternion).group(1))
+
+                    orientation_z_string = re.search(r'z=([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)', quaternion).group(1)
+                    orientation_w_string = re.search(r'w=([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)', quaternion).group(1)
+                    orientation_z = self.to_float(orientation_z_string)
+                    orientation_w = self.to_float(orientation_w_string)
 
                     time = sec + (1000 * nanosec)
                     self.est_timestamps_data[key] = np.append(self.est_timestamps_data[key], time)
@@ -568,7 +667,15 @@ class Plotter(Node):
                     self.est_x_data[key] = np.append(self.est_x_data[key], point_x)
                     self.est_y_data[key] = np.append(self.est_y_data[key], point_y)
 
-                    yaw = tr.euler.quat2euler([0.0, 0.0, orientation_z, orientation_w], axes='szyx')[2]
+                    quat = Quaternion([orientation_w, 0.0, 0.0, orientation_z])
+
+                    # quat = quat + tr.euler.euler2quat(0,0,180)
+
+                    yaw = tr.euler.quat2euler(quat, axes='sxyz')[2]
+
+                    
+
+                    self.est_quat_data[key] = np.append(self.est_quat_data[key], quat)
 
                     self.est_yaw_data[key] = np.append(self.est_yaw_data[key], yaw)
                     
